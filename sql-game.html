@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Quest - By Osmar Gurgel</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --panel: #0f1628; --border: #1e3a5f;
+    --cyan: #00e5ff; --green: #00ff88; --yellow: #ffd600;
+    --red: #ff3d6b; --purple: #b44dff; --orange: #ff8c00;
+    --text: #c8d8e8; --dim: #4a6080;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; min-height: 100vh; overflow-x: hidden; }
+  body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px); pointer-events:none; z-index:9999; }
+  .stars { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .star { position:absolute; background:white; border-radius:50%; animation:twinkle var(--d) infinite; }
+  @keyframes twinkle { 0%,100%{opacity:.1} 50%{opacity:.8} }
+  header { text-align:center; padding:22px 16px 10px; border-bottom:1px solid var(--border); }
+  .game-title { font-family:'Press Start 2P',monospace; font-size:clamp(15px,4vw,25px); color:var(--cyan); letter-spacing:4px; animation:glow 2s ease-in-out infinite alternate; }
+  @keyframes glow { from{text-shadow:0 0 10px var(--cyan)} to{text-shadow:0 0 24px var(--cyan),0 0 50px rgba(0,229,255,.5)} }
+  .subtitle { color:var(--dim); font-size:9px; margin-top:7px; letter-spacing:3px; }
+  .hud { display:flex; justify-content:center; gap:24px; padding:10px 20px; background:rgba(0,229,255,.03); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .hud-item { text-align:center; }
+  .hud-label { font-size:8px; color:var(--dim); letter-spacing:2px; }
+  .hud-value { font-family:'Press Start 2P',monospace; font-size:12px; margin-top:3px; }
+  .hud-value.cyan{color:var(--cyan)} .hud-value.green{color:var(--green)} .hud-value.yellow{color:var(--yellow)} .hud-value.orange{color:var(--orange)}
+  .xp-bar-wrap { padding:7px 20px; border-bottom:1px solid var(--border); }
+  .xp-bar-label { font-size:8px; color:var(--dim); letter-spacing:2px; margin-bottom:4px; }
+  .xp-bar-bg { background:var(--border); height:7px; border-radius:4px; overflow:hidden; }
+  .xp-bar-fill { height:100%; background:linear-gradient(90deg,var(--purple),var(--cyan)); border-radius:4px; transition:width .6s cubic-bezier(.4,0,.2,1); box-shadow:0 0 10px var(--cyan); }
+  .main { max-width:960px; margin:0 auto; padding:22px 16px; }
+  .screen { display:none; }
+  .screen.active { display:block; }
+
+  /* MAP */
+  .map-title { font-family:'Press Start 2P',monospace; font-size:11px; color:var(--yellow); text-align:center; margin-bottom:20px; letter-spacing:2px; }
+  .world-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:13px; }
+  .world-card { border:1px solid var(--border); background:var(--panel); border-radius:8px; padding:16px 13px; cursor:pointer; transition:all .2s; position:relative; overflow:hidden; }
+  .world-card::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,transparent 60%,rgba(0,229,255,.04)); pointer-events:none; }
+  .world-card:hover:not(.locked) { border-color:var(--cyan); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,229,255,.12); }
+  .world-card.locked { opacity:.33; cursor:not-allowed; }
+  .world-card.completed { border-color:var(--green); }
+  .world-icon { font-size:24px; margin-bottom:8px; display:block; }
+  .world-name { font-family:'Press Start 2P',monospace; font-size:8px; color:var(--cyan); margin-bottom:6px; letter-spacing:1px; line-height:1.7; }
+  .world-desc { font-size:9px; color:var(--dim); line-height:1.6; }
+  .world-badge { position:absolute; top:9px; right:9px; font-size:11px; }
+  .world-diff { display:inline-block; margin-top:8px; font-size:8px; padding:2px 7px; border-radius:10px; border:1px solid; letter-spacing:1px; }
+  .diff-beginner{color:var(--green);border-color:var(--green)} .diff-medium{color:var(--yellow);border-color:var(--yellow)} .diff-hard{color:var(--orange);border-color:var(--orange)} .diff-expert{color:var(--red);border-color:var(--red)}
+  .world-progress { margin-top:9px; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .world-progress-fill { height:100%; background:var(--green); transition:width .4s; }
+
+  /* LEVELS */
+  .back-btn { background:none; border:1px solid var(--border); color:var(--dim); padding:7px 15px; font-family:'Share Tech Mono',monospace; font-size:11px; cursor:pointer; border-radius:4px; margin-bottom:18px; letter-spacing:1px; transition:all .2s; }
+  .back-btn:hover { border-color:var(--cyan); color:var(--cyan); }
+  .level-screen-title { font-family:'Press Start 2P',monospace; font-size:10px; color:var(--yellow); margin-bottom:16px; text-align:center; }
+  .levels-list { display:flex; flex-direction:column; gap:9px; }
+  .level-row { border:1px solid var(--border); background:var(--panel); border-radius:6px; padding:13px 15px; cursor:pointer; display:flex; align-items:center; gap:13px; transition:all .2s; }
+  .level-row:hover:not(.locked) { border-color:var(--cyan); background:rgba(0,229,255,.04); }
+  .level-row.locked { opacity:.33; cursor:not-allowed; }
+  .level-row.done { border-color:var(--green); }
+  .level-num { font-family:'Press Start 2P',monospace; font-size:10px; color:var(--cyan); min-width:26px; }
+  .level-info { flex:1; }
+  .level-title { font-size:12px; color:var(--text); }
+  .level-hint { font-size:10px; color:var(--dim); margin-top:3px; }
+  .level-stars { font-size:13px; letter-spacing:2px; }
+
+  /* QUIZ */
+  .quiz-wrap { animation:fadeIn .3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .quiz-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:8px; }
+  .quiz-breadcrumb { font-size:10px; color:var(--dim); letter-spacing:1px; }
+  .quiz-lives { font-size:14px; letter-spacing:3px; }
+  .quiz-progress-label { font-size:10px; color:var(--dim); margin-bottom:5px; letter-spacing:1px; }
+  .quiz-progress-bg { background:var(--border); height:5px; border-radius:3px; overflow:hidden; margin-bottom:16px; }
+  .quiz-progress-fill { height:100%; background:var(--yellow); transition:width .4s; box-shadow:0 0 8px var(--yellow); }
+  .table-wrap { border:1px solid var(--border); border-radius:6px; overflow:auto; margin-bottom:16px; }
+  .table-label { background:rgba(0,229,255,.07); padding:7px 13px; font-size:10px; color:var(--cyan); border-bottom:1px solid var(--border); letter-spacing:2px; }
+  table { width:100%; border-collapse:collapse; font-size:11px; min-width:280px; }
+  th { background:rgba(0,229,255,.05); padding:7px 11px; text-align:left; color:var(--cyan); border-bottom:1px solid var(--border); font-size:10px; letter-spacing:1px; }
+  td { padding:7px 11px; border-bottom:1px solid rgba(30,58,95,.5); }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(0,229,255,.03); }
+  .question-box { border:1px solid var(--border); background:var(--panel); border-radius:8px; padding:17px; margin-bottom:16px; }
+  .question-type { font-size:9px; color:var(--purple); letter-spacing:2px; margin-bottom:9px; text-transform:uppercase; }
+  .question-text { font-size:13px; color:var(--text); line-height:1.8; }
+  .question-text code { background:rgba(0,229,255,.1); color:var(--cyan); padding:2px 6px; border-radius:3px; font-family:'Share Tech Mono',monospace; font-size:12px; }
+  .options-grid { display:grid; gap:9px; grid-template-columns:1fr 1fr; }
+  @media(max-width:520px){.options-grid{grid-template-columns:1fr}}
+  .opt-btn { background:var(--panel); border:1px solid var(--border); color:var(--text); padding:12px 14px; border-radius:6px; cursor:pointer; font-family:'Share Tech Mono',monospace; font-size:11px; text-align:left; transition:all .15s; line-height:1.5; }
+  .opt-btn:hover:not(:disabled) { border-color:var(--cyan); background:rgba(0,229,255,.06); color:var(--cyan); }
+  .opt-btn.correct { border-color:var(--green); background:rgba(0,255,136,.1); color:var(--green); }
+  .opt-btn.wrong { border-color:var(--red); background:rgba(255,61,107,.1); color:var(--red); }
+  .opt-btn:disabled { cursor:default; }
+  .fill-wrap { display:flex; gap:10px; flex-wrap:wrap; }
+  .fill-input { flex:1; min-width:140px; background:var(--panel); border:1px solid var(--border); color:var(--cyan); padding:11px 13px; border-radius:6px; font-family:'Share Tech Mono',monospace; font-size:13px; outline:none; transition:border-color .2s; }
+  .fill-input:focus { border-color:var(--cyan); }
+  .fill-input.correct { border-color:var(--green); color:var(--green); }
+  .fill-input.wrong { border-color:var(--red); color:var(--red); }
+  .submit-btn { background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(0,229,255,.05)); border:1px solid var(--cyan); color:var(--cyan); padding:11px 20px; border-radius:6px; font-family:'Share Tech Mono',monospace; font-size:12px; cursor:pointer; letter-spacing:2px; transition:all .2s; }
+  .submit-btn:hover { background:rgba(0,229,255,.2); box-shadow:0 0 16px rgba(0,229,255,.3); }
+  .feedback-box { border-radius:8px; padding:14px 17px; margin-top:13px; font-size:11px; line-height:1.8; display:none; animation:fadeIn .2s; }
+  .feedback-box.show { display:block; }
+  .feedback-box.ok { border:1px solid var(--green); background:rgba(0,255,136,.07); color:var(--green); }
+  .feedback-box.err { border:1px solid var(--red); background:rgba(255,61,107,.07); color:var(--red); }
+  .feedback-box strong { font-size:12px; display:block; margin-bottom:5px; letter-spacing:1px; }
+  .feedback-box code { background:rgba(0,0,0,.3); padding:2px 6px; border-radius:3px; font-family:'Share Tech Mono',monospace; }
+  .next-btn { margin-top:13px; background:var(--panel); border:1px solid var(--yellow); color:var(--yellow); padding:12px 28px; border-radius:6px; font-family:'Share Tech Mono',monospace; font-size:12px; cursor:pointer; letter-spacing:2px; display:none; transition:all .2s; width:100%; }
+  .next-btn.show { display:block; }
+  .next-btn:hover { background:rgba(255,214,0,.1); box-shadow:0 0 12px rgba(255,214,0,.2); }
+
+  /* RESULT */
+  .result-box { text-align:center; border:1px solid var(--border); background:var(--panel); border-radius:12px; padding:34px 22px; max-width:500px; margin:0 auto; }
+  .result-icon { font-size:50px; margin-bottom:13px; }
+  .result-title { font-family:'Press Start 2P',monospace; font-size:12px; margin-bottom:13px; letter-spacing:2px; }
+  .result-stars { font-size:26px; letter-spacing:6px; margin-bottom:16px; }
+  .result-score { font-size:12px; color:var(--dim); margin-bottom:20px; line-height:1.9; }
+  .result-score span { color:var(--cyan); }
+  .result-btns { display:flex; gap:9px; justify-content:center; flex-wrap:wrap; }
+  .rbtn { padding:10px 18px; border-radius:6px; font-family:'Share Tech Mono',monospace; font-size:10px; cursor:pointer; letter-spacing:2px; transition:all .2s; border:1px solid; }
+  .rbtn.primary { border-color:var(--cyan); color:var(--cyan); background:rgba(0,229,255,.07); }
+  .rbtn.secondary { border-color:var(--border); color:var(--dim); background:var(--panel); }
+  .rbtn:hover { opacity:.8; transform:translateY(-1px); }
+
+  /* XP POPUP */
+  .xp-popup { position:fixed; top:50%; left:50%; font-family:'Press Start 2P',monospace; font-size:18px; color:var(--yellow); text-shadow:0 0 20px var(--yellow); pointer-events:none; z-index:1000; opacity:0; }
+  .xp-popup.show { animation:popXP 1s forwards; }
+  @keyframes popXP { 0%{opacity:1;transform:translate(-50%,-60%) scale(1.2)} 50%{opacity:1;transform:translate(-50%,-70%) scale(1)} 100%{opacity:0;transform:translate(-50%,-90%) scale(.8)} }
+
+  /* LEVEL UP */
+  .levelup-banner { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-100px); background:linear-gradient(135deg,#1a2a0a,#0a1a1a); border:2px solid var(--yellow); border-radius:10px; padding:13px 26px; text-align:center; z-index:2000; transition:transform .4s cubic-bezier(.34,1.56,.64,1); box-shadow:0 0 30px rgba(255,214,0,.3); }
+  .levelup-banner.show { transform:translateX(-50%) translateY(0); }
+  .levelup-title { font-family:'Press Start 2P',monospace; font-size:10px; color:var(--yellow); letter-spacing:2px; }
+  .levelup-sub { font-size:10px; color:var(--dim); margin-top:5px; }
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+
+<header>
+  <div class="game-title">⚡ SQL QUEST</div>
+  <div class="subtitle">APRENDA SQL JOGANDO · 8 MUNDOS · 22 FASES</div>
+</header>
+
+<div class="hud">
+  <div class="hud-item"><div class="hud-label">NÍVEL</div><div class="hud-value cyan" id="hud-level">1</div></div>
+  <div class="hud-item"><div class="hud-label">XP TOTAL</div><div class="hud-value yellow" id="hud-xp">0</div></div>
+  <div class="hud-item"><div class="hud-label">ACERTOS</div><div class="hud-value green" id="hud-correct">0</div></div>
+  <div class="hud-item"><div class="hud-label">MUNDOS</div><div class="hud-value orange" id="hud-worlds">0/8</div></div>
+</div>
+<div class="xp-bar-wrap">
+  <div class="xp-bar-label">XP PARA PRÓXIMO NÍVEL: <span id="xp-next-label">100</span></div>
+  <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-bar" style="width:0%"></div></div>
+</div>
+
+<div class="main">
+  <div class="screen active" id="screen-map">
+    <div class="map-title">▶ ESCOLHA UM MUNDO</div>
+    <div class="world-grid" id="world-grid"></div>
+  </div>
+  <div class="screen" id="screen-levels">
+    <button class="back-btn" onclick="showMap()">◀ MAPA</button>
+    <div class="level-screen-title" id="level-screen-title"></div>
+    <div class="levels-list" id="levels-list"></div>
+  </div>
+  <div class="screen" id="screen-quiz">
+    <div class="quiz-wrap" id="quiz-wrap"></div>
+  </div>
+  <div class="screen" id="screen-result">
+    <div class="result-box" id="result-box"></div>
+  </div>
+</div>
+
+<div class="xp-popup" id="xp-popup">+XP</div>
+<div class="levelup-banner" id="levelup-banner">
+  <div class="levelup-title">🎉 LEVEL UP!</div>
+  <div class="levelup-sub" id="levelup-sub">Nível 2 alcançado!</div>
+</div>
+
+<script>
+// ════════ DATA ════════
+const WORLDS = [
+{
+  id:'basics', icon:'🗄️', diff:'beginner',
+  name:'MUNDO 1\nSELECT GALAXY', desc:'Fundamentos do SELECT, WHERE e FROM.',
+  levels:[
+    { title:'Primeiro SELECT', hint:'Buscar dados de tabelas',
+      questions:[
+        {type:'mc',text:'Qual comando SQL serve para <code>buscar dados</code> de uma tabela?',options:['INSERT','SELECT','UPDATE','DELETE'],answer:1,explain:'<code>SELECT</code> é o principal comando de consulta. Ex: <code>SELECT * FROM usuarios</code>'},
+        {type:'mc',text:'O que o <code>*</code> significa em <code>SELECT * FROM clientes</code>?',options:['Apenas 1 coluna','Todas as colunas','A tabela inteira','Nenhum resultado'],answer:1,explain:'O <code>*</code> seleciona TODAS as colunas da tabela.'},
+        {type:'fill',text:'Complete: <code>______ nome FROM funcionarios</code>',answer:'select',explain:'Sintaxe básica: <code>SELECT coluna FROM tabela</code>'},
+      ]},
+    { title:'Filtrando com WHERE', hint:'Condições para filtrar linhas',
+      questions:[
+        {type:'mc',text:'Qual query retorna apenas produtos com preço maior que 50?',
+         table:{name:'produtos',cols:['id','nome','preco'],rows:[['1','Caneta','5.00'],['2','Notebook','2500.00'],['3','Borracha','3.00'],['4','Monitor','800.00']]},
+         options:['SELECT * FROM produtos WHERE preco &lt; 50','SELECT * FROM produtos WHERE preco = 50','SELECT * FROM produtos WHERE preco &gt; 50','SELECT preco FROM produtos'],answer:2,explain:'<code>WHERE preco > 50</code> retorna Notebook e Monitor.'},
+        {type:'mc',text:'Qual operador compara igualdade? <code>WHERE nome ____ "Ana"</code>',options:['>','<','=','!='],answer:2,explain:'O operador <code>=</code> compara igualdade: <code>WHERE nome = "Ana"</code>'},
+        {type:'fill',text:'Buscar clientes da cidade "SP": <code>SELECT * FROM clientes WHERE cidade __ "SP"</code>',answer:'=',explain:'Para igualdade use <code>=</code>'},
+      ]},
+    { title:'ORDER BY', hint:'Ordenar resultados',
+      questions:[
+        {type:'mc',text:'Qual cláusula ordena os resultados de uma consulta?',options:['SORT BY','ORDER BY','GROUP BY','FILTER BY'],answer:1,explain:'<code>ORDER BY</code> ordena resultados. Ex: <code>ORDER BY preco</code>'},
+        {type:'mc',text:'O que <code>DESC</code> significa em <code>ORDER BY valor DESC</code>?',options:['Crescente','Decrescente (maior→menor)','Descrição','Deletar'],answer:1,explain:'<code>DESC</code> = decrescente. <code>ASC</code> = crescente (padrão).'},
+        {type:'fill',text:'Ordenar do menor ao maior: <code>SELECT * FROM produtos ORDER BY preco ___</code>',answer:'asc',explain:'<code>ASC</code> ordena em ordem crescente (padrão quando omitido).'},
+      ]},
+  ]
+},
+{
+  id:'filter', icon:'🔍', diff:'beginner',
+  name:'MUNDO 2\nFILTER ZONE', desc:'LIKE, IN, BETWEEN, AND e OR.',
+  levels:[
+    { title:'AND e OR', hint:'Combinar condições',
+      questions:[
+        {type:'mc',text:'Qual query retorna funcionários com salário > 3000 E departamento "TI"?',options:['WHERE salario > 3000 OR depto = "TI"','WHERE salario > 3000 AND depto = "TI"','WHERE salario > 3000','WHERE depto = "TI"'],answer:1,explain:'<code>AND</code> exige AMBAS as condições verdadeiras.'},
+        {type:'mc',text:'<code>WHERE idade = 18 OR idade = 25</code> — quais registros retorna?',options:['Apenas idade 18','Apenas idade 25','Entre 18 e 25','Idades 18 OU 25'],answer:3,explain:'<code>OR</code> retorna linhas onde QUALQUER condição é verdadeira.'},
+        {type:'fill',text:'Clientes de SP com saldo > 1000: <code>WHERE cidade = "SP" ___ saldo > 1000</code>',answer:'and',explain:'<code>AND</code> — ambas as condições devem ser verdadeiras.'},
+      ]},
+    { title:'LIKE e Wildcards', hint:'Busca por padrão',
+      questions:[
+        {type:'mc',text:'Qual query busca produtos cujo nome começa com "Ca"?',options:['WHERE nome = "Ca"','WHERE nome LIKE "Ca%"','WHERE nome LIKE "%Ca"','WHERE nome IN ("Ca")'],answer:1,explain:'<code>LIKE "Ca%"</code> — o <code>%</code> substitui qualquer sequência depois de "Ca".'},
+        {type:'mc',text:'O que <code>WHERE email LIKE "%@gmail.com"</code> retorna?',options:['Emails que começam com @','Todos os emails','Emails terminando em @gmail.com','Apenas gmail'],answer:2,explain:'<code>%</code> no início = qualquer texto antes de @gmail.com.'},
+        {type:'fill',text:'Nomes que contêm "silva" em qualquer posição: <code>WHERE nome LIKE __silva__</code>',answer:'%',explain:'<code>%silva%</code> — o <code>%</code> dos dois lados = qualquer texto antes E depois.'},
+      ]},
+    { title:'IN e BETWEEN', hint:'Intervalos e listas',
+      questions:[
+        {type:'mc',text:'Forma mais limpa de buscar clientes de "RJ", "SP" e "MG":',options:['WHERE cidade = "RJ" AND cidade = "SP" AND cidade = "MG"','WHERE cidade IN ("RJ","SP","MG")','WHERE cidade LIKE "RJ%"','WHERE cidade BETWEEN "RJ" AND "MG"'],answer:1,explain:'<code>IN (lista)</code> é muito mais limpo que vários OR.'},
+        {type:'mc',text:'<code>WHERE preco BETWEEN 10 AND 100</code> inclui os valores 10 e 100?',options:['Não','Sim, os extremos são incluídos','Apenas 10','Apenas 100'],answer:1,explain:'<code>BETWEEN x AND y</code> é inclusivo nos extremos.'},
+        {type:'fill',text:'Pedidos com valor de 50 a 200: <code>WHERE valor _______ 50 AND 200</code>',answer:'between',explain:'<code>BETWEEN 50 AND 200</code> — inclusivo nos extremos.'},
+      ]},
+  ]
+},
+{
+  id:'aggregate', icon:'📊', diff:'medium',
+  name:'MUNDO 3\nDATA FORGE', desc:'COUNT, SUM, AVG, MAX, MIN e GROUP BY.',
+  levels:[
+    { title:'Funções de Agregação', hint:'Calcular totais e médias',
+      questions:[
+        {type:'mc',text:'Qual função conta o número de linhas de uma tabela?',options:['SUM()','COUNT()','AVG()','MAX()'],answer:1,explain:'<code>COUNT(*)</code> conta registros. Ex: <code>SELECT COUNT(*) FROM pedidos</code>'},
+        {type:'mc',text:'Qual query retorna o TOTAL de vendas?',
+         table:{name:'vendas',cols:['id','vendedor','valor'],rows:[['1','Ana','500'],['2','Bob','300'],['3','Ana','200'],['4','Bob','700']]},
+         options:['SELECT MAX(valor) FROM vendas','SELECT COUNT(valor) FROM vendas','SELECT SUM(valor) FROM vendas','SELECT AVG(valor) FROM vendas'],answer:2,explain:'<code>SUM(valor)</code> soma: 500+300+200+700 = 1700.'},
+        {type:'fill',text:'Calcular média de salários: <code>SELECT ___(salario) FROM funcionarios</code>',answer:'avg',explain:'<code>AVG(coluna)</code> calcula a média dos valores.'},
+      ]},
+    { title:'GROUP BY', hint:'Agrupar e agregar',
+      questions:[
+        {type:'mc',text:'Total de vendas por vendedor — qual query está correta?',
+         table:{name:'vendas',cols:['id','vendedor','valor'],rows:[['1','Ana','500'],['2','Bob','300'],['3','Ana','200'],['4','Bob','700']]},
+         options:['SELECT vendedor, SUM(valor) FROM vendas ORDER BY vendedor','SELECT vendedor, SUM(valor) FROM vendas GROUP BY vendedor','SELECT COUNT(*), SUM(valor) FROM vendas','SELECT vendedor FROM vendas GROUP BY valor'],answer:1,explain:'<code>GROUP BY vendedor</code> agrupa linhas por vendedor para aplicar SUM por grupo.'},
+        {type:'mc',text:'Qual cláusula filtra grupos criados pelo GROUP BY?',options:['WHERE','FILTER','HAVING','GROUP FILTER'],answer:2,explain:'<code>HAVING</code> filtra grupos. Ex: <code>HAVING COUNT(*) > 5</code>'},
+        {type:'fill',text:'Contar pedidos por cliente: <code>SELECT cliente_id, COUNT(*) FROM pedidos ______ BY cliente_id</code>',answer:'group',explain:'<code>GROUP BY cliente_id</code> agrupa para aplicar COUNT por cliente.'},
+      ]},
+  ]
+},
+{
+  id:'joins', icon:'🔗', diff:'medium',
+  name:'MUNDO 4\nJOIN NEXUS', desc:'INNER JOIN, LEFT JOIN e relacionamentos.',
+  levels:[
+    { title:'INNER JOIN', hint:'Unir tabelas por chave',
+      questions:[
+        {type:'mc',text:'O que um <code>JOIN</code> faz em SQL?',options:['Apaga duas tabelas','Combina linhas de duas ou mais tabelas','Duplica uma tabela','Ordena múltiplas tabelas'],answer:1,explain:'JOIN une tabelas com base em uma coluna relacionada.'},
+        {type:'mc',text:'Sintaxe correta para unir <b>pedidos</b> com <b>clientes</b>:',options:['SELECT * FROM pedidos, clientes','SELECT * FROM pedidos JOIN clientes WHERE pedidos.id = clientes.id','SELECT * FROM pedidos INNER JOIN clientes ON pedidos.cliente_id = clientes.id','SELECT * FROM pedidos HAVING clientes.id'],answer:2,explain:'<code>INNER JOIN tabela ON condicao</code> — o ON define a ligação entre as tabelas.'},
+        {type:'mc',text:'O INNER JOIN retorna:',options:['Todas as linhas da esquerda','Todas as linhas da direita','Apenas linhas com correspondência nas duas tabelas','Todas as linhas de ambas'],answer:2,explain:'<code>INNER JOIN</code> retorna apenas registros que existem em AMBAS as tabelas.'},
+      ]},
+    { title:'LEFT JOIN', hint:'Manter registros sem par',
+      questions:[
+        {type:'mc',text:'Qual a diferença do LEFT JOIN para o INNER JOIN?',options:['LEFT JOIN é mais rápido','LEFT JOIN retorna TODOS da tabela esquerda, mesmo sem correspondência','LEFT JOIN só retorna matches','LEFT JOIN une mais de 3 tabelas'],answer:1,explain:'<code>LEFT JOIN</code> retorna todos da esquerda. Sem correspondência, preenche com NULL.'},
+        {type:'mc',text:'Listar todos os clientes, mesmo os sem pedido. Qual usar?',options:['INNER JOIN pedidos ON clientes.id = pedidos.cliente_id','LEFT JOIN pedidos ON clientes.id = pedidos.cliente_id','RIGHT JOIN clientes ON pedidos.cliente_id = clientes.id','FULL JOIN pedidos ON clientes.id = pedidos.id'],answer:1,explain:'<code>LEFT JOIN</code> garante que todos os clientes aparecem, mesmo sem pedidos (NULL).'},
+        {type:'fill',text:'Manter todos os clientes: <code>SELECT * FROM clientes ____ JOIN pedidos ON clientes.id = pedidos.cliente_id</code>',answer:'left',explain:'<code>LEFT JOIN</code> mantém todos os registros da tabela à esquerda.'},
+      ]},
+  ]
+},
+{
+  id:'crud', icon:'✏️', diff:'medium',
+  name:'MUNDO 5\nCRUD STATION', desc:'INSERT, UPDATE, DELETE e transações.',
+  levels:[
+    { title:'INSERT', hint:'Inserir novos dados',
+      questions:[
+        {type:'mc',text:'Qual comando adiciona um novo registro em uma tabela?',options:['ADD INTO','INSERT INTO','PUSH INTO','CREATE INTO'],answer:1,explain:'<code>INSERT INTO tabela (col1,col2) VALUES (val1,val2)</code> — insere uma nova linha.'},
+        {type:'mc',text:'Qual query insere um produto "Teclado" com preço 150?',options:["INSERT INTO produtos VALUES ('Teclado',150)","INSERT INTO produtos (nome,preco) VALUES ('Teclado',150)","ADD INTO produtos (nome,preco) = ('Teclado',150)","INSERT produtos SET nome='Teclado',preco=150"],answer:1,explain:'A forma completa especifica as colunas: <code>INSERT INTO produtos (nome,preco) VALUES ("Teclado",150)</code>'},
+        {type:'fill',text:'<code>INSERT ______ clientes (nome,email) VALUES ("Maria","m@m.com")</code>',answer:'into',explain:'<code>INSERT INTO</code> é a sintaxe padrão para inserção.'},
+      ]},
+    { title:'UPDATE e DELETE', hint:'Modificar e remover dados',
+      questions:[
+        {type:'mc',text:'Qual query atualiza o email do cliente com id=5?',options:["MODIFY clientes SET email='n@e.com' WHERE id=5","UPDATE clientes SET email='n@e.com' WHERE id=5","CHANGE clientes email='n@e.com' WHERE id=5","ALTER clientes SET email='n@e.com' WHERE id=5"],answer:1,explain:'<code>UPDATE tabela SET coluna=valor WHERE condicao</code> — sempre use WHERE!'},
+        {type:'mc',text:'⚠️ O que acontece com <code>DELETE FROM pedidos</code> sem WHERE?',options:['Nada, é seguro','Deleta apenas o primeiro registro','Deleta TODOS os registros','Dá erro de sintaxe'],answer:2,explain:'Sem WHERE, DELETE remove TODOS os registros! Sempre verifique o WHERE antes.'},
+        {type:'fill',text:'Deletar usuários inativos: <code>______ FROM usuarios WHERE ativo = 0</code>',answer:'delete',explain:'<code>DELETE FROM tabela WHERE condicao</code> — remove registros específicos.'},
+      ]},
+    { title:'Transações', hint:'COMMIT e ROLLBACK',
+      questions:[
+        {type:'mc',text:'O que é uma <b>transação</b> em SQL?',options:['Um tipo de JOIN','Um grupo de operações que executa de forma atômica (tudo ou nada)','Uma função de agregação','Um tipo de índice'],answer:1,explain:'Transações garantem que um grupo de operações execute TUDO ou NADA — integridade de dados.'},
+        {type:'mc',text:'Se uma operação falhar dentro de uma transação, qual comando desfaz tudo?',options:['UNDO','REVERT','ROLLBACK','CANCEL'],answer:2,explain:'<code>ROLLBACK</code> desfaz todas as operações. <code>COMMIT</code> confirma as mudanças.'},
+        {type:'mc',text:'Qual é a ordem correta de uma transação?',options:['COMMIT → operações → ROLLBACK','BEGIN → operações → COMMIT ou ROLLBACK','operações → BEGIN → COMMIT','ROLLBACK → operações → COMMIT'],answer:1,explain:'<code>BEGIN TRANSACTION → operações → COMMIT</code> (sucesso) ou <code>ROLLBACK</code> (erro).'},
+      ]},
+  ]
+},
+{
+  id:'subquery', icon:'🔮', diff:'hard',
+  name:'MUNDO 6\nSUBQUERY REALM', desc:'Subqueries, EXISTS e consultas aninhadas.',
+  levels:[
+    { title:'Subqueries Básicas', hint:'Consultas dentro de consultas',
+      questions:[
+        {type:'mc',text:'O que é uma <b>subquery</b>?',options:['Um alias para uma tabela','Uma query dentro de outra query','Um tipo especial de JOIN','Um nome alternativo para VIEW'],answer:1,explain:'Uma subquery é uma <code>SELECT</code> dentro de outra <code>SELECT</code>, entre parênteses.'},
+        {type:'mc',text:'Qual query retorna funcionários com salário acima da média?',
+         table:{name:'funcionarios',cols:['id','nome','salario'],rows:[['1','Ana','4000'],['2','Bob','2000'],['3','Carlos','6000'],['4','Diana','3000']]},
+         options:['SELECT * FROM func WHERE salario > 3750','SELECT * FROM func WHERE salario > AVG(salario)','SELECT * FROM func WHERE salario > (SELECT AVG(salario) FROM func)','SELECT * FROM func HAVING salario > AVG(salario)'],answer:2,explain:'A subquery <code>(SELECT AVG(salario) FROM func)</code> calcula a média primeiro, depois filtra.'},
+        {type:'fill',text:'Produtos mais caros que o id=1: <code>SELECT * FROM produtos WHERE preco > (SELECT preco FROM produtos _____ id = 1)</code>',answer:'where',explain:'A subquery <code>(SELECT preco FROM produtos WHERE id = 1)</code> retorna o preço para comparação.'},
+      ]},
+    { title:'EXISTS e IN com Subquery', hint:'Verificar existência',
+      questions:[
+        {type:'mc',text:'O que o operador <code>EXISTS</code> verifica?',options:['Se uma coluna tem NULL','Se a subquery retorna pelo menos uma linha','Se dois valores são iguais','Se uma tabela existe no banco'],answer:1,explain:'<code>EXISTS (subquery)</code> retorna TRUE se a subquery retornar ao menos um registro.'},
+        {type:'mc',text:'Qual query lista clientes que têm pelo menos 1 pedido?',options:['SELECT * FROM clientes WHERE pedidos > 0','SELECT * FROM clientes WHERE EXISTS (SELECT 1 FROM pedidos WHERE pedidos.cliente_id = clientes.id)','SELECT * FROM clientes INNER JOIN pedidos','SELECT * FROM clientes HAVING COUNT(pedidos) > 0'],answer:1,explain:'<code>EXISTS</code> verifica se existe algum pedido vinculado ao cliente.'},
+        {type:'mc',text:'Diferença entre <code>IN (subquery)</code> e <code>EXISTS (subquery)</code>?',options:['São idênticos','IN compara valores, EXISTS verifica existência — EXISTS é geralmente mais rápido para tabelas grandes','EXISTS é sempre mais lento','IN não aceita subqueries'],answer:1,explain:'<code>EXISTS</code> para na primeira correspondência encontrada — mais eficiente com tabelas grandes.'},
+      ]},
+  ]
+},
+{
+  id:'advanced', icon:'⚗️', diff:'hard',
+  name:'MUNDO 7\nFUNC LABORATORY', desc:'Funções de string, data, CASE e COALESCE.',
+  levels:[
+    { title:'Funções de String', hint:'Manipular textos em SQL',
+      questions:[
+        {type:'mc',text:'Qual função retorna o número de caracteres de uma string?',options:['COUNT()','SIZE()','LENGTH() ou LEN()','CHARS()'],answer:2,explain:'<code>LENGTH(coluna)</code> (MySQL/PostgreSQL) ou <code>LEN(coluna)</code> (SQL Server) conta os caracteres.'},
+        {type:'mc',text:'O que <code>SELECT UPPER(nome) FROM clientes</code> faz?',options:['Ordena os nomes','Converte os nomes para MAIÚSCULAS','Conta letras maiúsculas','Remove espaços'],answer:1,explain:'<code>UPPER()</code> converte texto para maiúsculas. <code>LOWER()</code> converte para minúsculas.'},
+        {type:'mc',text:'Qual função une duas strings?',options:['JOIN()','MERGE()','CONCAT()','COMBINE()'],answer:2,explain:'<code>CONCAT("Olá"," Mundo")</code> retorna "Olá Mundo". Alguns bancos usam o operador <code>||</code>.'},
+      ]},
+    { title:'Funções de Data', hint:'Trabalhar com datas',
+      questions:[
+        {type:'mc',text:'Qual função retorna a data e hora atual no MySQL?',options:['GETDATE()','TODAY()','NOW()','CURRENT()'],answer:2,explain:'<code>NOW()</code> retorna data/hora atual no MySQL. No SQL Server: <code>GETDATE()</code>.'},
+        {type:'mc',text:'Buscar pedidos do ano de 2024: <code>WHERE YEAR(data_pedido) = ____</code>',options:['2024','"2024"','(2024)','[2024]'],answer:0,explain:'<code>YEAR(data_pedido) = 2024</code> — a função YEAR extrai o ano de uma data.'},
+        {type:'fill',text:'Extrair o mês de uma data: <code>SELECT _____(data_nascimento) FROM clientes</code>',answer:'month',explain:'<code>MONTH(coluna)</code> extrai o mês. <code>YEAR()</code> extrai o ano. <code>DAY()</code> extrai o dia.'},
+      ]},
+    { title:'CASE e COALESCE', hint:'Lógica condicional em SQL',
+      questions:[
+        {type:'mc',text:'O que o <code>CASE WHEN</code> faz em SQL?',options:['Cria uma nova tabela','Adiciona lógica if/else dentro de uma query','Filtra linhas como WHERE','Agrupa como GROUP BY'],answer:1,explain:'<code>CASE WHEN cond THEN resultado ELSE outro END</code> — é o if/else do SQL.'},
+        {type:'mc',text:'Classificar produtos como "Caro" (>500) ou "Barato":',options:["SELECT nome, IF(preco>500,'Caro','Barato') FROM produtos","SELECT nome, CASE WHEN preco > 500 THEN 'Caro' ELSE 'Barato' END AS categoria FROM produtos","SELECT nome, WHEN preco > 500 THEN 'Caro' FROM produtos","SELECT nome, IIF(preco>500,'Caro','Barato') FROM produtos"],answer:1,explain:'<code>CASE WHEN preco > 500 THEN "Caro" ELSE "Barato" END AS categoria</code> — sintaxe ANSI padrão.'},
+        {type:'mc',text:'O que <code>COALESCE(coluna, "Sem valor")</code> retorna?',options:['Sempre NULL','O primeiro valor não-NULL — se coluna for NULL, retorna "Sem valor"','Concatena a coluna com "Sem valor"','Verifica se a coluna existe'],answer:1,explain:'<code>COALESCE(a,b)</code> retorna o primeiro argumento não-NULL. Essencial para tratar valores ausentes.'},
+      ]},
+  ]
+},
+{
+  id:'performance', icon:'⚡', diff:'expert',
+  name:'MUNDO 8\nPERF CITADEL', desc:'Índices, EXPLAIN, Views e CTEs.',
+  levels:[
+    { title:'Índices', hint:'Acelerar consultas',
+      questions:[
+        {type:'mc',text:'O que é um <b>índice</b> em banco de dados?',options:['Um tipo de JOIN','Uma estrutura que acelera a busca de registros','Um alias para uma coluna','Uma restrição de valor único'],answer:1,explain:'Um índice é como o índice de um livro — permite encontrar registros sem varrer a tabela inteira.'},
+        {type:'mc',text:'Quando um índice é MAIS útil?',options:['Em colunas raramente usadas no WHERE','Em colunas frequentemente usadas em WHERE, JOIN e ORDER BY','Em todas as colunas','Em colunas com poucos valores distintos (ex: sexo M/F)'],answer:1,explain:'Índices são mais úteis em colunas muito filtradas. Indexar colunas com poucos valores distintos raramente ajuda.'},
+        {type:'fill',text:'Criar índice em <code>email</code> da tabela <code>usuarios</code>: <code>CREATE _____ idx_email ON usuarios (email)</code>',answer:'index',explain:'<code>CREATE INDEX nome ON tabela (coluna)</code> — o índice acelera buscas por email.'},
+      ]},
+    { title:'EXPLAIN e Performance', hint:'Analisar consultas lentas',
+      questions:[
+        {type:'mc',text:'Para que serve o comando <code>EXPLAIN SELECT ...</code>?',options:['Para comentar uma query','Para ver como o banco executa a query — se usa índices, quantas linhas varre','Para exportar resultado em texto','Para documentar automaticamente'],answer:1,explain:'<code>EXPLAIN</code> mostra o plano de execução: se usa índice (ref) ou varredura completa (ALL).'},
+        {type:'mc',text:'Qual prática NÃO ajuda na performance?',options:['Adicionar índices nas colunas do WHERE','Selecionar apenas colunas necessárias (evitar SELECT *)','Adicionar índices em TODAS as colunas','Usar JOINs em vez de subqueries aninhadas'],answer:2,explain:'Índices em excesso prejudicam INSERT/UPDATE/DELETE e consomem espaço. Indexe estrategicamente.'},
+        {type:'mc',text:'O que é um <code>Full Table Scan</code>?',options:['A query usa o índice corretamente','A query varre TODOS os registros da tabela, linha por linha','A query retorna todas as colunas','A query usa múltiplas tabelas'],answer:1,explain:'Full Table Scan = o banco leu TODOS os registros — muito lento em tabelas grandes. Índices resolvem isso.'},
+      ]},
+    { title:'Views e CTEs', hint:'Organizar queries complexas',
+      questions:[
+        {type:'mc',text:'O que é uma <b>VIEW</b> em SQL?',options:['Uma cópia física da tabela','Uma query salva que se comporta como tabela virtual','Um tipo de índice','Um backup automático'],answer:1,explain:'Uma VIEW é uma query armazenada. Você consulta como se fosse uma tabela: <code>SELECT * FROM minha_view</code>'},
+        {type:'mc',text:'Sintaxe para criar uma View:',options:['SAVE SELECT ... AS view_nome','CREATE VIEW view_nome AS SELECT ...','MAKE VIEW view_nome FROM SELECT ...','BUILD VIEW view_nome (SELECT ...)'],answer:1,explain:'<code>CREATE VIEW nome AS SELECT ...</code> — simplifica queries complexas e reutilizáveis.'},
+        {type:'mc',text:'O que é uma <b>CTE</b> (Common Table Expression)?',options:['Um tipo de índice avançado','Uma query temporária definida com WITH, usada apenas na query atual','Um substituto para o GROUP BY','Uma window function'],answer:1,explain:'<code>WITH minha_cte AS (SELECT ...) SELECT * FROM minha_cte</code> — temporária e melhora legibilidade.'},
+      ]},
+  ]
+},
+];
+
+// ════════ STATE ════════
+const state = {xp:0,level:1,totalCorrect:0,progress:{},currentWorld:null,currentLevel:null,currentQ:0,lives:3,wrongThisLevel:0,correctThisLevel:0};
+const XP_PER_LEVEL = 100;
+function saveState(){try{localStorage.setItem('sqlquest3',JSON.stringify(state));}catch(e){}}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('sqlquest3'));if(s)Object.assign(state,s);}catch(e){}}
+
+// ════════ STARS ════════
+function makeStars(){const c=document.getElementById('stars');for(let i=0;i<90;i++){const s=document.createElement('div');s.className='star';const sz=Math.random()*2+.5;s.style.cssText=`width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;--d:${(Math.random()*3+2).toFixed(1)}s;animation-delay:${(Math.random()*4).toFixed(1)}s`;c.appendChild(s);}}
+
+// ════════ SCREENS ════════
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}
+function showMap(){renderMap();showScreen('map');}
+
+// ════════ HUD ════════
+function updateHUD(){
+  document.getElementById('hud-level').textContent=state.level;
+  document.getElementById('hud-xp').textContent=state.xp;
+  document.getElementById('hud-correct').textContent=state.totalCorrect;
+  const completed=WORLDS.filter((_,wi)=>isWorldCompleted(wi)).length;
+  document.getElementById('hud-worlds').textContent=completed+'/'+WORLDS.length;
+  const xpInLevel=state.xp%XP_PER_LEVEL;
+  document.getElementById('xp-bar').style.width=(xpInLevel/XP_PER_LEVEL*100)+'%';
+  document.getElementById('xp-next-label').textContent=XP_PER_LEVEL-xpInLevel;
+}
+function addXP(amount){
+  const prevLevel=state.level;
+  state.xp+=amount;
+  state.level=Math.floor(state.xp/XP_PER_LEVEL)+1;
+  updateHUD();
+  showXPPopup('+'+amount+' XP');
+  if(state.level>prevLevel)showLevelUp(state.level);
+  saveState();
+}
+function showXPPopup(txt){const el=document.getElementById('xp-popup');el.textContent=txt;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');}
+function showLevelUp(lv){const b=document.getElementById('levelup-banner');document.getElementById('levelup-sub').textContent='Nível '+lv+' alcançado! 🎉';b.classList.add('show');setTimeout(()=>b.classList.remove('show'),3000);}
+
+// ════════ PROGRESS ════════
+function getProgress(wid,lIdx){return state.progress[wid+'_'+lIdx]||0;}
+function isLevelUnlocked(world,lIdx){if(lIdx===0)return true;return getProgress(world.id,lIdx-1)>0;}
+function isWorldUnlocked(wIdx){if(wIdx===0)return true;const prev=WORLDS[wIdx-1];return prev.levels.some((_,i)=>getProgress(prev.id,i)>0);}
+function isWorldCompleted(wIdx){return WORLDS[wIdx].levels.every((_,i)=>getProgress(WORLDS[wIdx].id,i)>=2);}
+
+// ════════ MAP ════════
+function renderMap(){
+  const grid=document.getElementById('world-grid');grid.innerHTML='';
+  WORLDS.forEach((w,wi)=>{
+    const unlocked=isWorldUnlocked(wi),completed=isWorldCompleted(wi);
+    const done=w.levels.filter((_,i)=>getProgress(w.id,i)>0).length;
+    const pct=Math.round(done/w.levels.length*100);
+    const card=document.createElement('div');
+    card.className='world-card'+(unlocked?'':' locked')+(completed?' completed':'');
+    card.innerHTML=`<span class="world-icon">${w.icon}</span><div class="world-name">${w.name.replace('\n','<br>')}</div><div class="world-desc">${w.desc}</div><div class="world-badge">${completed?'✅':unlocked?'':'🔒'}</div><span class="world-diff diff-${w.diff}">${w.diff.toUpperCase()}</span><div class="world-progress"><div class="world-progress-fill" style="width:${pct}%"></div></div>`;
+    if(unlocked)card.onclick=()=>showLevelSelect(wi);
+    grid.appendChild(card);
+  });
+}
+
+// ════════ LEVEL SELECT ════════
+function showLevelSelect(worldIdx){
+  state.currentWorld=worldIdx;
+  const w=WORLDS[worldIdx];
+  document.getElementById('level-screen-title').textContent=w.icon+' '+w.name.replace('\n',' — ');
+  const list=document.getElementById('levels-list');list.innerHTML='';
+  w.levels.forEach((lv,li)=>{
+    const unlocked=isLevelUnlocked(w,li),stars=getProgress(w.id,li);
+    const row=document.createElement('div');
+    row.className='level-row'+(unlocked?'':' locked')+(stars?' done':'');
+    row.innerHTML=`<div class="level-num">${String(li+1).padStart(2,'0')}</div><div class="level-info"><div class="level-title">${lv.title}</div><div class="level-hint">${lv.hint}</div></div><div class="level-stars">${'★'.repeat(stars)+'☆'.repeat(3-stars)}</div>`;
+    if(unlocked)row.onclick=()=>startLevel(worldIdx,li);
+    list.appendChild(row);
+  });
+  showScreen('levels');
+}
+
+// ════════ QUIZ ════════
+function startLevel(worldIdx,levelIdx){
+  Object.assign(state,{currentWorld:worldIdx,currentLevel:levelIdx,currentQ:0,lives:3,wrongThisLevel:0,correctThisLevel:0});
+  showScreen('quiz');renderQuestion();
+}
+function renderQuestion(){
+  const w=WORLDS[state.currentWorld],lv=w.levels[state.currentLevel],q=lv.questions[state.currentQ],total=lv.questions.length;
+  document.getElementById('quiz-wrap').innerHTML=`
+    <div class="quiz-header">
+      <div class="quiz-breadcrumb">${w.icon} ${w.name.split('\n')[1]} › ${lv.title}</div>
+      <div class="quiz-lives">${'❤️'.repeat(state.lives)}${'🖤'.repeat(3-state.lives)}</div>
+    </div>
+    <div class="quiz-progress-label">QUESTÃO ${state.currentQ+1} DE ${total}</div>
+    <div class="quiz-progress-bg"><div class="quiz-progress-fill" style="width:${state.currentQ/total*100}%"></div></div>
+    ${q.table?renderTable(q.table):''}
+    <div class="question-box">
+      <div class="question-type">${q.type==='mc'?'▸ MÚLTIPLA ESCOLHA':'▸ COMPLETE O CÓDIGO'}</div>
+      <div class="question-text">${q.text}</div>
+    </div>
+    ${q.type==='mc'?renderMC(q):renderFill(q)}
+    <div class="feedback-box" id="feedback"></div>
+    <button class="next-btn" id="next-btn" onclick="nextQuestion()">${state.currentQ+1<total?'PRÓXIMA QUESTÃO ▶':'VER RESULTADO ▶'}</button>`;
+}
+function renderTable(t){
+  return`<div class="table-wrap"><div class="table-label">📋 TABELA: ${t.name}</div><table><thead><tr>${t.cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function renderMC(q){return`<div class="options-grid">${q.options.map((o,i)=>`<button class="opt-btn" onclick="answerMC(${i})">${o}</button>`).join('')}</div>`;}
+function renderFill(q){return`<div class="fill-wrap"><input class="fill-input" id="fill-input" placeholder="Digite aqui..." autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')answerFill()"><button class="submit-btn" onclick="answerFill()">ENVIAR</button></div>`;}
+
+function answerMC(idx){
+  const q=WORLDS[state.currentWorld].levels[state.currentLevel].questions[state.currentQ];
+  const btns=document.querySelectorAll('.opt-btn');btns.forEach(b=>b.disabled=true);
+  const correct=idx===q.answer;
+  btns[idx].classList.add(correct?'correct':'wrong');
+  if(!correct)btns[q.answer].classList.add('correct');
+  showFeedback(correct,q.explain);
+}
+function answerFill(){
+  const q=WORLDS[state.currentWorld].levels[state.currentLevel].questions[state.currentQ];
+  const inp=document.getElementById('fill-input');
+  if(!inp||inp.disabled)return;
+  const correct=inp.value.trim().toLowerCase()===q.answer.toLowerCase();
+  inp.disabled=true;inp.classList.add(correct?'correct':'wrong');
+  if(!correct){const s=inp.nextElementSibling;if(s){s.disabled=true;s.style.opacity='.5';}}
+  showFeedback(correct,q.explain,q.answer);
+}
+function showFeedback(correct,explain,correctAnswer){
+  if(correct){state.correctThisLevel++;state.totalCorrect++;addXP(20);}
+  else{state.wrongThisLevel++;state.lives=Math.max(0,state.lives-1);}
+  const fb=document.getElementById('feedback');
+  fb.className='feedback-box show '+(correct?'ok':'err');
+  fb.innerHTML=correct?`<strong>✅ CORRETO!</strong>${explain}`:`<strong>❌ ERRADO!</strong>${explain}${correctAnswer?` Resposta: <code>${correctAnswer}</code>`:''}`;
+  document.getElementById('next-btn').classList.add('show');
+  const total=WORLDS[state.currentWorld].levels[state.currentLevel].questions.length;
+  document.querySelector('.quiz-progress-fill').style.width=((state.currentQ+1)/total*100)+'%';
+}
+function nextQuestion(){
+  const lv=WORLDS[state.currentWorld].levels[state.currentLevel];
+  if(state.currentQ+1<lv.questions.length){
+    state.currentQ++;
+    const w=document.getElementById('quiz-wrap');w.style.opacity='0';
+    setTimeout(()=>{w.style.opacity='1';renderQuestion();},150);
+  }else showResult();
+}
+
+// ════════ RESULT ════════
+function showResult(){
+  const w=WORLDS[state.currentWorld],lv=w.levels[state.currentLevel],total=lv.questions.length,correct=state.correctThisLevel,pct=correct/total;
+  let stars=pct===1?3:pct>=.6?2:1;
+  const key=w.id+'_'+state.currentLevel;
+  if((state.progress[key]||0)<stars)state.progress[key]=stars;
+  const bonusXP=stars===3?50:stars===2?25:0;
+  if(bonusXP)addXP(bonusXP);
+  saveState();
+  const icon=stars===3?'🏆':stars===2?'⭐':'💪';
+  const title=stars===3?'PERFEITO!':stars===2?'BOA FASE!':'CONTINUE!';
+  const color=stars===3?'var(--yellow)':stars===2?'var(--cyan)':'var(--text)';
+  const hasNext=state.currentLevel+1<w.levels.length;
+  document.getElementById('result-box').innerHTML=`
+    <div class="result-icon">${icon}</div>
+    <div class="result-title" style="color:${color}">${title}</div>
+    <div class="result-stars">${'★'.repeat(stars)+'☆'.repeat(3-stars)}</div>
+    <div class="result-score">Acertos: <span>${correct}</span> / ${total}<br>XP ganho: <span>${correct*20+bonusXP}</span><br>Vidas: ${'❤️'.repeat(state.lives)||'(sem vidas)'}</div>
+    <div class="result-btns">
+      <button class="rbtn primary" onclick="startLevel(${state.currentWorld},${state.currentLevel})">🔄 REPETIR</button>
+      ${hasNext?`<button class="rbtn primary" onclick="startLevel(${state.currentWorld},${state.currentLevel+1})">▶ PRÓXIMA</button>`:''}
+      <button class="rbtn secondary" onclick="showLevelSelect(${state.currentWorld})">📋 FASES</button>
+      <button class="rbtn secondary" onclick="showMap()">🗺️ MAPA</button>
+    </div>`;
+  showScreen('result');
+}
+
+// ════════ INIT ════════
+loadState();makeStars();updateHUD();showMap();
+</script>
+</body>
+</html>
